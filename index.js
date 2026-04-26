@@ -166,8 +166,18 @@ function proxyPlaylistContent(content, url, headersParam) {
         }
 
         if (trimmed.startsWith('#')) {
+            let out = line;
+
+            // Strip CODECS and AUDIO attributes from #EXT-X-STREAM-INF lines.
+            // HLS.js uses these to pre-select a SourceBuffer codec — if the codec
+            // string doesn't exactly match what the browser registered, it throws
+            // bufferAddCodecError. Removing them lets HLS.js sniff the codec from
+            // the actual segment bytes instead, which is always reliable.
+            out = out.replace(/,?\s*CODECS="[^"]*"/gi, '');
+            out = out.replace(/,?\s*AUDIO="[^"]*"/gi, '');
+
             // Rewrite any URI="..." attributes inside HLS tags (e.g. EXT-X-KEY, EXT-X-MAP)
-            return line.replace(/(URI\s*=\s*")([^"]+)(")/gi, (match, prefix, uri, suffix) => {
+            out = out.replace(/(URI\s*=\s*")([^"]+)(")/gi, (match, prefix, uri, suffix) => {
                 try {
                     const abs = new URL(uri, url.href).href;
                     return `${prefix}${generateProxyUrl(abs, headersParam)}${suffix}`;
@@ -175,6 +185,8 @@ function proxyPlaylistContent(content, url, headersParam) {
                     return match;
                 }
             });
+
+            return out;
         }
 
         // Non-comment lines are segment/sub-playlist URLs
